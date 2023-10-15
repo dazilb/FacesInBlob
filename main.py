@@ -1,3 +1,4 @@
+import pathlib
 import time
 from PIL import Image
 import cv2
@@ -10,13 +11,17 @@ from mediapipe.python.solutions.drawing_utils import _normalized_to_pixel_coordi
 
 # get Azure Storage connection string and container name from the config file
 connection_string = "your_connection_string_here"
-container_name = "your_container_name_here"
+container_name_origin = "your_container_name_here_for_origin"
+container_name_result = "your_container_name_here_for_result"
 
 # Create a BlobServiceClient
 blob_service_client = BlobServiceClient.from_connection_string(connection_string)
 
-# Get a reference to the container
-container_client = blob_service_client.get_container_client(container_name)
+# Get a reference to the origin container
+container_client_origin = blob_service_client.get_container_client(container_name_origin)
+
+# Get a reference to the results container
+container_client_results = blob_service_client.get_container_client(container_name_result)
 
 # Function to convert an image to grayscale
 def convert_to_grayscale(image_path):
@@ -26,14 +31,14 @@ def convert_to_grayscale(image_path):
 
 # Iterate through all blobs in the container
 def crop_all_images_in_blob():
-    for blob in container_client.list_blobs():
+    for blob in container_client_origin.list_blobs():
         # Check if the blob is a directory (folder)
         img_list = []
         if blob.name.endswith('/'):
             folder_name = blob.name.rstrip('/')
-            for image_blob in container_client.walk_blobs(folder_name):
+            for image_blob in container_client_origin.walk_blobs(folder_name):
                 image_name = image_blob.name
-                image_data = container_client.get_blob_client(image_name).download_blob().readall()
+                image_data = container_client_origin.get_blob_client(image_name).download_blob().readall()
                 with open(image_name, 'wb') as image_file:
                     image_file.write(image_data)
                 img_list.append(image_name)
@@ -44,16 +49,35 @@ def crop_all_images_in_blob():
                     face_image_name = os.path.join(folder_name, f'cropped_{folder_name}_{idx}')
                     face.save(face_image_name)
                     with open(face_image_name, 'rb') as grayscale_image_file:
-                        container_client.upload_blob(grayscale_image_file, name=face_image_name)
+                        container_client_origin.upload_blob(grayscale_image_file, name=face_image_name)
                     os.remove(image_name)
                 os.remove(face_image_name)
+
+def crop_all_images_in_container():
+    for blob in container_client_origin.list_blobs(): # This goes through all blobs in container in all the folders
+        img_list = []
+        image_name = blob.name
+        local_image_name="C:/Users/talshoham/Pictures/Test/" + pathlib.Path(image_name).name
+        with open(file=local_image_name, mode='wb') as image_file:
+            image_file.write(container_client_origin.download_blob(blob.name).readall())
+        img_list.append(local_image_name)
+        faces = process_image(local_image_name)
+        if not faces:
+            continue
+        for idx, face in enumerate(faces):
+            face_image_name = os.path.splitext(image_name)[0] + "_" + str(idx) + os.path.splitext(image_name)[1]
+            local_face_name = os.path.splitext(local_image_name)[0] + "_" + str(idx) + os.path.splitext(local_image_name)[1]
+            cv2.imwrite(local_face_name, face)
+            with open(local_face_name, 'rb') as face_image_file:
+                container_client_results.upload_blob(name=face_image_name, data=face_image_file, overwrite=True)
+            os.remove(local_face_name)
+        os.remove(local_image_name)
 
 def process_images_from_folder(folder_path):
     image_list = []
     for filename in os.listdir(folder_path):
         file_path = os.path.join(folder_path, filename)
     return image_list
-
 
 def resize_img(img):
     scale_percent = 400  # percent of original size
@@ -63,7 +87,6 @@ def resize_img(img):
 
     # resize image
     return cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
-
 
 def crop_img(img, detection):
     image_rows, image_cols, _ = img.shape
@@ -100,7 +123,7 @@ def crop_img(img, detection):
     return image_input[ytop: ybot, xleft: xright]
 
 def process_images():
-    folder_path = "C:/test"
+    folder_path = "C:/Users/talshoham/Pictures/Test"
     IMAGE_FILES = os.listdir(folder_path)
     with mp_face_detection.FaceDetection(
             model_selection=1, min_detection_confidence=0.3) as face_detection:
@@ -110,7 +133,7 @@ def process_images():
                 image = cv2.imread(file)
                 # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
                 results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                if results.detections < 2:
+                if len(results.detections) < 2:
                     # don't need to crop images with one face
                     continue
                 for idx2, detection in enumerate(results.detections):
@@ -121,7 +144,6 @@ def process_images():
             except Exception as e:
                 print(f"Skipped {file} - {str(e)}")
 
-
 def process_image(file):
     detected_faces_list = []
     with mp_face_detection.FaceDetection(
@@ -130,8 +152,9 @@ def process_image(file):
                 image = cv2.imread(file)
                 # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
                 results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                if results.detections < 2:
+                if results.detections is None:
                     # don't need to crop images with one face
+                    # @daria - maybe we want to log this condition? so that we can validate this image?
                     return
                 for idx, detection in enumerate(results.detections):
                     cropped_image = image.copy()
@@ -141,5 +164,4 @@ def process_image(file):
                 return detected_faces_list
             except Exception as e:
                 print(f"Skipped {file} - {str(e)}")
-
 
