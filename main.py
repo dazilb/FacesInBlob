@@ -150,7 +150,6 @@ def process_image(file):
             except Exception as e:
                 print(f"Skipped {file} - {str(e)}")
 
-
 def init_blob_connection():
     # Create a BlobServiceClient
     blob_service_client = BlobServiceClient.from_connection_string(connection_string)
@@ -164,3 +163,4 @@ if(is_local):
     process_dir(local_folder_path)
 else:
     crop_all_images_in_container()
+
