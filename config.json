@@ -1,5 +1,5 @@
 {
-    "local_folder_path": "your_root_folder_here",
+    "local_folder_path": "C:\\Users\\dzilbergertz\\Desktop\\ironswords\\images-from-excel",
     "connection_string": "your_connection_string_here",
     "container_name_origin": "your_container_name_here_for_origin",
     "container_name_result": "your_container_name_here_for_result",

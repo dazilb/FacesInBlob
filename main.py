@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 import pathlib
 import cv2
 import os
 import mediapipe as mp
-import glob
+import numpy as np
+import PIL
+from PIL import Image
 from azure.storage.blob import BlobServiceClient
 mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
@@ -115,17 +116,19 @@ def process_images_in_folder(directory_path):
         for idx, file_name in enumerate(IMAGE_FILES):
             file = os.path.join(directory_path, file_name)
             try:
-                image = cv2.imread(file)
-                # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
-                results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                if len(results.detections) < 2:
+                image = Image.open(file)
+                cv2_image = np.array(image)
+                results = face_detection.process(cv2_image)
+                if results.detections is None or len(results.detections) < 2:
                     # don't need to crop images with one face
                     continue
                 for idx2, detection in enumerate(results.detections):
-                    cropped_image = image.copy()
+                    cropped_image = cv2_image.copy()
                     cropped_image = crop_img(cropped_image, detection)
                     cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(file + str(idx2) + '.png', cropped_image)
+                    img_pil = Image.fromarray(cropped_image)
+                    new_file_name = os.path.splitext(file)[0] + "_" + str(idx2) + os.path.splitext(file)[1] or ".jpg"
+                    img_pil.save(new_file_name)
             except Exception as e:
                 print(f"Skipped {file} - {str(e)}")
 
