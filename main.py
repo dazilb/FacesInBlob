@@ -1,59 +1,38 @@
+# -*- coding: utf-8 -*-
 import pathlib
-import time
-from PIL import Image
 import cv2
 import os
 import mediapipe as mp
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+import glob
+from azure.storage.blob import BlobServiceClient
 mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
 from mediapipe.python.solutions.drawing_utils import _normalized_to_pixel_coordinates
+import json
 
-# get Azure Storage connection string and container name from the config file
-connection_string = "your_connection_string_here"
-container_name_origin = "your_container_name_here_for_origin"
-container_name_result = "your_container_name_here_for_result"
+with open('config.json', 'r') as config_file:
+    config = json.load(config_file)
 
-# Create a BlobServiceClient
-blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+# The code in this file assumes that the root folder contains folders of images, 
+# In the following directory structure (for both the cloud and local implementations):
+# Root
+# |-- Subdir1
+# |   |-- File1.png
+# |   |-- File2.png
+# |-- Subdir2
+# |   |-- File1.png
+# |-- Subdir3
+# |   |-- File1.png
+local_folder_path = config.get('local_folder_path')
+connection_string = config.get('connection_string')
+container_name_origin = config.get('container_name_origin')
+container_name_result = config.get('container_name_result')
+is_local = config.get('is_local')
 
-# Get a reference to the origin container
-container_client_origin = blob_service_client.get_container_client(container_name_origin)
-
-# Get a reference to the results container
-container_client_results = blob_service_client.get_container_client(container_name_result)
-
-# Function to convert an image to grayscale
-def convert_to_grayscale(image_path):
-    image = Image.open(image_path)
-    grayscale_image = image.convert("L")
-    return grayscale_image
 
 # Iterate through all blobs in the container
-def crop_all_images_in_blob():
-    for blob in container_client_origin.list_blobs():
-        # Check if the blob is a directory (folder)
-        img_list = []
-        if blob.name.endswith('/'):
-            folder_name = blob.name.rstrip('/')
-            for image_blob in container_client_origin.walk_blobs(folder_name):
-                image_name = image_blob.name
-                image_data = container_client_origin.get_blob_client(image_name).download_blob().readall()
-                with open(image_name, 'wb') as image_file:
-                    image_file.write(image_data)
-                img_list.append(image_name)
-                faces = process_image(image_name)
-                if not faces:
-                    continue
-                for idx, face in faces:
-                    face_image_name = os.path.join(folder_name, f'cropped_{folder_name}_{idx}')
-                    face.save(face_image_name)
-                    with open(face_image_name, 'rb') as grayscale_image_file:
-                        container_client_origin.upload_blob(grayscale_image_file, name=face_image_name)
-                    os.remove(image_name)
-                os.remove(face_image_name)
-
 def crop_all_images_in_container():
+    blob_service_client, container_client_origin, container_client_results = init_blob_connection()
     for blob in container_client_origin.list_blobs(): # This goes through all blobs in container in all the folders
         img_list = []
         image_name = blob.name
@@ -104,10 +83,10 @@ def crop_img(img, detection):
     ymin -= 0.4 * (ymax - relative_bounding_box.ymin)
     ymax += 0.4 * (ymax - relative_bounding_box.ymin)
 
-    xmin = xmin if xmin > 0 else 0
-    ymin = ymin if ymin > 0 else 0
-    xmax = xmax if xmax < image_cols else image_cols
-    ymax = ymax if ymax < image_rows else image_rows
+    xmin = max(xmin, 0)
+    ymin = max(ymin, 0)
+    xmax = min(xmax, 1)
+    ymax = min(ymax, 1)
 
     rect_start_point = _normalized_to_pixel_coordinates(
         xmin, ymin, image_cols,
@@ -122,13 +101,19 @@ def crop_img(img, detection):
 
     return image_input[ytop: ybot, xleft: xright]
 
-def process_images():
-    folder_path = "C:/Users/talshoham/Pictures/Test"
-    IMAGE_FILES = os.listdir(folder_path)
+def process_dir(root_folder):
+    items = os.listdir(root_folder)
+    for item in items:
+        item_path = os.path.join(root_folder, item)
+        if os.path.isdir(item_path): 
+            process_images_in_folder(item_path)
+
+def process_images_in_folder(directory_path):
+    IMAGE_FILES = os.listdir(directory_path)
     with mp_face_detection.FaceDetection(
             model_selection=1, min_detection_confidence=0.3) as face_detection:
         for idx, file_name in enumerate(IMAGE_FILES):
-            file = os.path.join(folder_path, file_name)
+            file = os.path.join(directory_path, file_name)
             try:
                 image = cv2.imread(file)
                 # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
@@ -138,7 +123,7 @@ def process_images():
                     continue
                 for idx2, detection in enumerate(results.detections):
                     cropped_image = image.copy()
-                    cropped_image = crop_img(cropped_image,detection)
+                    cropped_image = crop_img(cropped_image, detection)
                     cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
                     cv2.imwrite(file + str(idx2) + '.png', cropped_image)
             except Exception as e:
@@ -165,3 +150,17 @@ def process_image(file):
             except Exception as e:
                 print(f"Skipped {file} - {str(e)}")
 
+
+def init_blob_connection():
+    # Create a BlobServiceClient
+    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+    # Get a reference to the origin container
+    container_client_origin = blob_service_client.get_container_client(container_name_origin)
+    # Get a reference to the results container
+    container_client_results = blob_service_client.get_container_client(container_name_result)
+    return blob_service_client, container_client_origin, container_client_results
+
+if(is_local):
+    process_dir(local_folder_path)
+else:
+    crop_all_images_in_container()
