@@ -106,8 +106,8 @@ def crop_img(img, detection):
 
     xmin = xmin if xmin > 0 else 0
     ymin = ymin if ymin > 0 else 0
-    xmax = xmax if xmax < image_cols else image_cols
-    ymax = ymax if ymax < image_rows else image_rows
+    xmax = xmax if xmax < 1 else 1
+    ymax = ymax if ymax < 1 else 1
 
     rect_start_point = _normalized_to_pixel_coordinates(
         xmin, ymin, image_cols,
@@ -164,4 +164,3 @@ def process_image(file):
                 return detected_faces_list
             except Exception as e:
                 print(f"Skipped {file} - {str(e)}")
-
