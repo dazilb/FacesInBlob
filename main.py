@@ -3,13 +3,15 @@ import cv2
 import os
 import mediapipe as mp
 import numpy as np
-import PIL
-from PIL import Image
+import imutils
+import dlib
 from azure.storage.blob import BlobServiceClient
-mp_face_detection = mp.solutions.face_detection
-mp_drawing = mp.solutions.drawing_utils
 from mediapipe.python.solutions.drawing_utils import _normalized_to_pixel_coordinates
 import json
+
+mp_face_detection = mp.solutions.face_detection
+mp_drawing = mp.solutions.drawing_utils
+dlib_face_detection = dlib.get_frontal_face_detector()
 
 with open('config.json', 'r') as config_file:
     config = json.load(config_file)
@@ -73,21 +75,14 @@ def resize_img(img):
     # resize image
     return cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
 
-def crop_img(img, detection):
+def crop_img(img, xmax, ymax, xmin, ymin):
     image_rows, image_cols, _ = img.shape
     image_input = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    location = detection.location_data
 
-    relative_bounding_box = location.relative_bounding_box
-    xmax = relative_bounding_box.xmin + relative_bounding_box.width
-    ymax = relative_bounding_box.ymin + relative_bounding_box.height
-    xmin = relative_bounding_box.xmin
-    ymin = relative_bounding_box.ymin
-
-    xmin -= 0.4 * (xmax - relative_bounding_box.xmin)
-    xmax += 0.4 * (xmax - relative_bounding_box.xmin)
-    ymin -= 0.4 * (ymax - relative_bounding_box.ymin)
-    ymax += 0.4 * (ymax - relative_bounding_box.ymin)
+    xmin -= 0.4 * (xmax - xmin)
+    xmax += 0.4 * (xmax - xmin)
+    ymin -= 0.4 * (ymax - ymin)
+    ymax += 0.4 * (ymax - ymin)
 
     xmin = max(xmin, 0)
     ymin = max(ymin, 0)
@@ -130,7 +125,7 @@ def process_image_and_save_result(image_path):
         if img is None:
             print("image is none")
             return
-        cropped_images = process_image(img)
+        cropped_images = process_image_dlib(img)
         if cropped_images is None:
             # don't need to crop images with one face
             return
@@ -143,7 +138,7 @@ def process_image_and_save_result(image_path):
         print(f"Skipped {image_path} - {str(e)}")
 
 
-def process_image(image):
+def process_image_mediapipe(image):
     cropped_images = []
     with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.3) as face_detection:
         results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
@@ -151,11 +146,51 @@ def process_image(image):
             # don't need to crop images with one face
             return
         for idx2, detection in enumerate(results.detections):
-            cropped_image = crop_img(image.copy(), detection)
+            location = detection.location_data
+
+            relative_bounding_box = location.relative_bounding_box
+            xmax = relative_bounding_box.xmin + relative_bounding_box.width
+            ymax = relative_bounding_box.ymin + relative_bounding_box.height
+            xmin = relative_bounding_box.xmin
+            ymin = relative_bounding_box.ymin
+
+            cropped_image = crop_img(image.copy(), xmax, ymax, xmin, ymin)
             cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
             cropped_images.append(cropped_image)
     return cropped_images
 
+def process_image_dlib(image):
+    cropped_images = []
+    #small_image = imutils.resize(image, width=600)
+    rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    results = dlib_face_detection(rgb, 1)
+    if results is None or len(results) < 2:
+        # don't need to crop images with one face
+        return
+    for idx, detection in enumerate(results):
+        startX, startY, w, h = convert_and_trim_bb(image, detection)
+        cropped_image = image[startY: startY + h, startX: startX + w]
+        cropped_images.append(cropped_image)
+    return cropped_images
+
+def convert_and_trim_bb(image, rect):
+    # extract the starting and ending (x, y)-coordinates of the
+    # bounding box
+    startX = rect.left()
+    startY = rect.top()
+    endX = rect.right()
+    endY = rect.bottom()
+    # ensure the bounding box coordinates fall within the spatial
+    # dimensions of the image
+    startX = max(0, startX)
+    startY = max(0, startY)
+    endX = min(endX, image.shape[1])
+    endY = min(endY, image.shape[0])
+    # compute the width and height of the bounding box
+    w = endX - startX
+    h = endY - startY
+    # return our bounding box coordinates
+    return (startX, startY, w, h)
 
 # def process_image(file):
 #     detected_faces_list = []
