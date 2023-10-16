@@ -117,56 +117,66 @@ def process_dir(root_folder):
 def process_images_in_folder(directory_path):
     IMAGE_FILES = os.listdir(directory_path)
     for idx, file_name in enumerate(IMAGE_FILES):
-        file_path = os.path.join(directory_path, file_name)
-        process_image_and_save(file_path)
+        image_path = os.path.join(directory_path, file_name)
+        process_image_and_save_result(image_path)
+
+def process_image_and_save_result(image_path):
+    try:
+        with open(image_path, "rb") as f:
+            img_bytes = f.read()
+        img_array = np.frombuffer(img_bytes, np.uint8)
+        # Decode the image using OpenCV's imdecode function
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        if img is None:
+            print("image is none")
+            return
+        cropped_images = process_image(img)
+        if cropped_images is None:
+            # don't need to crop images with one face
+            return
+        for idx, cropped_image in enumerate(cropped_images):
+            new_file_name = os.path.splitext(image_path)[0] + "_" + str(idx) + os.path.splitext(image_path)[1]
+            retval, img_bytes = cv2.imencode(".jpg", cropped_image)
+            with open(new_file_name, "wb") as f:
+                f.write(img_bytes)
+    except Exception as e:
+        print(f"Skipped {image_path} - {str(e)}")
 
 
-def process_image_and_save(image_path):
-    with mp_face_detection.FaceDetection(
-            model_selection=1, min_detection_confidence=0.3) as face_detection:
-        try:
-            with open(image_path, "rb") as f:
-                img_bytes = f.read()
-            img_array = np.frombuffer(img_bytes, np.uint8)
-            # Decode the image using OpenCV's imdecode function
-            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-            if img is None:
-                print("image is none")
-                return
-            results = face_detection.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-            if results.detections is None or len(results.detections) < 2:
-                # don't need to crop images with one face
-                return
-            for idx2, detection in enumerate(results.detections):
-                cropped_image = crop_img(img.copy(), detection)
-                cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
-                new_file_name = os.path.splitext(image_path)[0] + "_" + str(idx2) + os.path.splitext(image_path)[1]
-                retval, img_bytes = cv2.imencode(".jpg", cropped_image)
-                with open(new_file_name, "wb") as f:
-                    f.write(img_bytes)
-        except Exception as e:
-            print(f"Skipped {image_path} - {str(e)}")
+def process_image(image):
+    cropped_images = []
+    with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.3) as face_detection:
+        results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if results.detections is None or len(results.detections) < 2:
+            # don't need to crop images with one face
+            return
+        for idx2, detection in enumerate(results.detections):
+            cropped_image = crop_img(image.copy(), detection)
+            cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
+            cropped_images.append(cropped_image)
+    return cropped_images
 
-def process_image(file):
-    detected_faces_list = []
-    with mp_face_detection.FaceDetection(
-            model_selection=1, min_detection_confidence=0.3) as face_detection:
-            try:
-                image = cv2.imread(file)
-                # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
-                results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-                if results.detections is None:
-                    # don't need to crop images with one face
-                    # @daria - maybe we want to log this condition? so that we can validate this image?
-                    return
-                for idx, detection in enumerate(results.detections):
-                    cropped_image = image.copy()
-                    cropped_image = crop_img(cropped_image,detection)
-                    cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
-                    detected_faces_list.append(cropped_image)
-                return detected_faces_list
-            except Exception as e:
-                print(f"Skipped {file} - {str(e)}")
+
+# def process_image(file):
+#     detected_faces_list = []
+#     with mp_face_detection.FaceDetection(
+#             model_selection=1, min_detection_confidence=0.3) as face_detection:
+#             try:
+#                 image = cv2.imread(file)
+#                 # Convert the BGR image to RGB and process it with MediaPipe Face Detection.
+#                 results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+#                 if results.detections is None:
+#                     # don't need to crop images with one face
+#                     # @daria - maybe we want to log this condition? so that we can validate this image?
+#                     return
+#                 for idx, detection in enumerate(results.detections):
+#                     cropped_image = image.copy()
+#                     cropped_image = crop_img(cropped_image,detection)
+#                     cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2BGR)
+#                     detected_faces_list.append(cropped_image)
+#                 return detected_faces_list
+#             except Exception as e:
+#                 print(f"Skipped {file} - {str(e)}")
 
 def init_blob_connection():
     # Create a BlobServiceClient
