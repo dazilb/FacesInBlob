@@ -5,7 +5,7 @@
     "container_name_result": "your_container_name_here_for_result",
     "is_local": true,
     "instance_key": "your_key",
-    "endpoint": "your_endpoin"
+    "endpoint": "your_endpoint"
 }
 
 
