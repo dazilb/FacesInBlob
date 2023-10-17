@@ -1,11 +1,11 @@
 {
-    "local_folder_path": "C:\\Users\\dzilbergertz\\Desktop\\ironswords\\images-from-excel",
+    "local_folder_path": "path_to_local_file",
     "connection_string": "your_connection_string_here",
     "container_name_origin": "your_container_name_here_for_origin",
     "container_name_result": "your_container_name_here_for_result",
     "is_local": true,
-    "instance_key": "ee446d6b65dc4210a99827c1b308f57c",
-    "endpoint": "https://daria-faces.cognitiveservices.azure.com/"
+    "instance_key": "your_key",
+    "endpoint": "your_endpoint"
 }
 
 
