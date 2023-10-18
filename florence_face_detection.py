@@ -11,15 +11,14 @@ faceIdTimeToLive: 86400 '''
 #/face/v1.0/detect?
 #https://cognitiveservice-303474.cognitiveservices.azure.com/face/v1.0/detect?returnFaceId=false&returnFaceLandmarks=true&returnFaceAttributes=mask&recognitionModel=recognition_01&returnRecognitionModel=false&detectionModel=detection_03&faceIdTimeToLive=86400
 
-
+import os
 import requests
 import json
 import cv2
 import time
-import os
 from dotenv import load_dotenv
 load_dotenv()
-from ..videoutils.misc import get_files_in_directory
+from misc import get_files_in_directory
 
 # Your Azure endpoint and subscription key
 cognitive_service_endpoint = os.getenv("COGNITIVE_SERVICES_ENDPOINT")        #"https://cognitiveservice-303474.cognitiveservices.azure.com/"
@@ -55,6 +54,10 @@ def detect_face(path_to_image):
 
 
 def crop_faces(faces, path_to_image, output_dir_path, image_name):
+    
+    if not os.path.exists(output_dir_path):
+        os.makedirs(output_dir_path)
+        
     img = cv2.imread(path_to_image)
     face_no = 0
     for face in faces:
@@ -63,12 +66,9 @@ def crop_faces(faces, path_to_image, output_dir_path, image_name):
         # Crop the face from the image
         cropped_face = img[y:y+h, x:x+w]
         
-        cv2.imwrite(output_dir_path + face_no + image_name, cropped_face)
+        if not cv2.imwrite( os.path.join(output_dir_path, str(face_no)+"_"+image_name), cropped_face):
+            raise Exception(f"Could not write image. Error in {image_name}")
         face_no+=1
-
-
-
-     
 
 def get_all_files_in_directory(script_path):
     
@@ -83,14 +83,5 @@ def get_all_files_in_directory(script_path):
     return file_list
 
 
-script_path = os.path.dirname(os.path.abspath(__file__))
-images_paths = get_all_files_in_directory(script_path+"/data")
 
-
-for path_to_image in images_paths:
-    faces = detect_face(path_to_image)
-    if faces:
-        crop_faces(faces, path_to_image, os.path.dirname(path_to_image) + "/cropped/" + os.path.basename(path_to_image))
-    else:
-        print("No faces detected") 
     

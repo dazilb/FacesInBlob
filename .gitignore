@@ -1,1 +1,4 @@
 florence/.env
+__pycache__/florence_face_detection.cpython-310.pyc
+__pycache__/misc.cpython-310.pyc
+.env
