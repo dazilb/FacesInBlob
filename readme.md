@@ -27,18 +27,6 @@ Root
 ```
 The code should be placed at the root level of your dataset directory, with each subdirectory containing the image files you want to process. The program will automatically detect and crop faces in all images, saving the cropped face images in their respective subdirectories.
 
-## Usage
-
-1. Ensure you have the necessary dependencies installed. You may need to install RetinaFace or any other required libraries.
-
-2. Place the code at the root level of your dataset directory.
-
-3. Run the Python script.
-
-4. The program will process each subdirectory, detect and crop faces in the images, and save the cropped face images in the respective subdirectories.
-
-5. Check the subdirectories for the cropped face images.
-
 ## Installation
 
 Before using this tool, you need to install the necessary Python libraries and configure your environment. Follow these steps to set up the required dependencies:
