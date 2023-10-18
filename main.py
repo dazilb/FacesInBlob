@@ -54,8 +54,6 @@ def process_images_in_azure_blob():
             continue
         for idx, file_name in enumerate(output_files):
             face_image_name = os.path.splitext(image_name)[0] + "_" + str(idx) + os.path.splitext(image_name)[1]
-            # local_face_name = os.path.splitext(local_image_name)[0] + "_" + str(idx) + os.path.splitext(local_image_name)[1]
-            # cv2.imwrite(local_face_name, face)
             with open(file_name, 'rb') as face_image_file:
                 container_client_results.upload_blob(name=face_image_name, data=face_image_file, overwrite=True)
             os.remove(file_name)
@@ -106,6 +104,7 @@ def detect_faces_retinaface(image_path):
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
+
 def extract_faces(image_path):
     resp = []
     obj = RetinaFace.detect_faces(open_image(image_path))
@@ -119,6 +118,7 @@ def extract_faces(image_path):
                 facial_img = crop_img(img, facial_area[0], facial_area[1], facial_area[2] - facial_area[0], facial_area[3] - facial_area[1])
                 resp.append(facial_img[:, :, ::-1])
         return resp
+
 
 def crop_img(img, x, y, width, height):
     h, w, _ = img.shape

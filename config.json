@@ -1,8 +1,8 @@
 {
     "local_folder_path": "path_to_local_file",
-    "connection_string": "your_connection_string_here",
-    "container_name_origin": "your_container_name_here_for_origin",
-    "container_name_result": "your_container_name_here_for_result",
+    "connection_string": "your_azure_blob_storage_connection_string",
+    "container_name_origin": "test",
+    "container_name_result": "res",
     "is_local": true,
     "instance_key": "your_key",
     "endpoint": "your_endpoint"
