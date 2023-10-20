@@ -2,17 +2,39 @@
 
 import cv2
 import os
+
+from azure.storage.blob import BlobServiceClient, BlobClient
+from azure.core.exceptions import ResourceNotFoundError
+from collections import defaultdict
+import base64
+
 from dotenv import load_dotenv
 load_dotenv()
 
-input_dataset_location = os.getenv("INPUT_DATASET_LOCATION")    
+storage_name = os.getenv("STORAGE_ACCOUNT_NAME")
+storage_url = os.getenv("STORAGE_ACCOUNT_URL")
+container_name = os.getenv("CONTAINER_NAME")
+container_sas_token = os.getenv("CONTAINER_SAS_TOKEN")
+input_dataset_location = os.getenv("INPUT_DATASET_LOCATION")   
+ 
+# Connect to the Blob Service using SAS token
+blob_service_client = BlobServiceClient(account_url=storage_url, credential=container_sas_token)
+# Reference the container
+container_client = blob_service_client.get_container_client(container_name)
 
+#how many frames per second to extract from the video
 FRAMES_PER_SECOND = 4
 
-def get_files_in_directory(root_path, extension=".mp4"):
+
+#TODO - add recusive search for files in subfolders
+#TODO - handle very large lists
+def get_files_from_blob_storage(folder, ext):
+    return [blob.name for blob in container_client.list_blobs(name_starts_with=folder) if blob.name.endswith(ext)]
+    
+
+def get_files_from_directory(root_path, extension=".mp4"):
     
     file_list = []
-    
     # os.walk() generates the file names in a directory tree
     for dirpath, dirnames, filenames in os.walk(root_path):
         for file in filenames:
@@ -22,13 +44,20 @@ def get_files_in_directory(root_path, extension=".mp4"):
                 file_list.append(full_path)
     return file_list
 
-
+def read_file_content_from_blob_storage(file_path):
+    try:
+        blob_content = container_client.get_blob_client(file_path).download_blob()
+        return blob_content.readall()
+    except ResourceNotFoundError:
+        print(f"Blob {file_path} not found.")
+        return None
+    
 def video2frames(root_path):
     
     if not os.path.exists(root_path):
         raise Exception(f"Invalid input folder: {root_path}")
         
-    mp4s = get_files_in_directory(root_path, ".mp4")
+    mp4s = get_files_from_directory(root_path, ".mp4")
 
     for video in mp4s:
         # Open the video file using OpenCV
@@ -75,3 +104,4 @@ def video2frames(root_path):
 
 #run video2frames. Uncomment if you want to run this script directly
 #video2frames(input_dataset_location)
+#get_files_from_blob_storage("zignalv2/2023/10/20/images/", ".jpg")
