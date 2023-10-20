@@ -15,4 +15,5 @@ for path_to_image in frames:
     if faces:
         crop_faces(faces, path_to_image, os.path.dirname(path_to_image) + "/cropped/",  os.path.basename(path_to_image))
     else:
-        print("No faces detected") 
+        print(f"No faces detected for image: {path_to_image}")
+        

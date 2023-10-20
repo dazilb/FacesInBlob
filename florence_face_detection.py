@@ -53,18 +53,32 @@ def detect_face(path_to_image):
     return faces
 
 
-def crop_faces(faces, path_to_image, output_dir_path, image_name):
+def crop_faces(faces, path_to_image, output_dir_path, image_name, padding_percentage=0.3):
     
     if not os.path.exists(output_dir_path):
         os.makedirs(output_dir_path)
         
     img = cv2.imread(path_to_image)
+    img_height, img_width, _ = img.shape
+    
     face_no = 0
     for face in faces:
         rectangle = face['faceRectangle']
         x, y, w, h = rectangle['left'], rectangle['top'], rectangle['width'], rectangle['height']
+        
+         # Calculate padding
+        x_padding = int(w * padding_percentage)
+        y_padding = int(h * padding_percentage)
+        
+         # Adjust the coordinates with padding
+        x_start = max(x - x_padding, 0)
+        y_start = max(y - y_padding, 0)
+        x_end = min(x + w + x_padding, img_width)
+        y_end = min(y + h + y_padding, img_height)
+        
         # Crop the face from the image
-        cropped_face = img[y:y+h, x:x+w]
+        #cropped_face = img[y:y+h, x:x+w]
+        cropped_face = img[y_start:y_end, x_start:x_end]
         
         if not cv2.imwrite( os.path.join(output_dir_path, str(face_no)+"_"+image_name), cropped_face):
             raise Exception(f"Could not write image. Error in {image_name}")

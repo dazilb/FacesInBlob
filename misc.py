@@ -73,5 +73,5 @@ def video2frames(root_path):
 
     print(f"Saved {output_frame_count} frames at {output_rate} frames per second.")
 
-#run video2frames
+#run video2frames. Uncomment if you want to run this script directly
 #video2frames(input_dataset_location)
